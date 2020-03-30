@@ -1,0 +1,153 @@
+import bpy
+import numpy as np
+import sympy as sp
+
+from numpy import sin, cos
+
+# import sys
+# sys.path.insert(0, '/home/feral/engineering/tensor_calculus/blender')
+# from gp_arrow_vertices__ import arrow_vertices__float
+
+###
+
+
+# vector components to point (tuple understood by blender as point)
+def v_2_p(matrix):
+    x, y, z = matrix[0], matrix[1], matrix[2]
+    return float(x), float(y), float(z)
+
+# numpy: the arc is the angle describing the arc, 2*π will be a full circle, 3*π/2 will be three quarters, etc...
+def vertex_circle(radius, vertex_number, arc, z):
+    r = radius
+    angles = [i * arc/vertex_number for i in range(vertex_number)]
+    return [np.array([r, α, z]) for α in angles]
+
+def vertical_arrow_vertices(length, cone_radius, cone_height):
+    root = np.array([0, 0, 0])
+    tip = np.array([0, 0, length])
+    circle = vertex_circle(cone_radius, 16, 3*np.pi/2,
+                           length - cone_height)
+    verts = [root, tip] + circle + [tip]
+    return verts
+
+
+def z_rotation_transform(φ):
+    return np.array([
+        [cos(φ),     -sin(φ),   0],
+        [sin(φ),      cos(φ),   0],
+        [0,           0,        1]
+    ])
+
+def y_rotation_transform(θ):
+    return np.array([
+        [cos(θ),     0,     -sin(θ)],
+        [0,          1,      0     ],
+        [sin(θ),     0,      cos(θ)]
+    ])
+
+def vertex__cyllindrical_2_cartesian__along_z(v):
+    r, θ, z = v[0], v[1], v[2]
+    x = r * np.cos(θ)
+    y = r * np.sin(θ)
+    return np.array([x, y, z])
+
+def vertex__cyllindrical_2_cartesian__along_y(v):
+    r, θ, z = v[0], v[1], v[2]
+    x = r * np.cos(θ)
+    y = r * np.sin(θ)
+    return np.array([x, z, y])
+
+def vertex__cyllindrical_2_cartesian__along_x(v):
+    r, θ, z = v[0], v[1], v[2]
+    x = r * np.cos(θ)
+    y = r * np.sin(θ)
+    return np.array([z, x, y])
+
+
+def cartesian_2_polar_coordiantes(x, y, z):
+    r = np.sqrt(x**2 + y**2 + z**2)
+    φ = np.arctan(y/x) if (x >= 0 and y >= 0) or (x >= 0 and y <= 0) else np.pi + np.arctan(y/x)
+    θ = np.arctan(z/np.sqrt(x**2 + y**2))
+    return r, φ, θ
+
+
+def arrow_vertices(vector, cone_radius, cone_height):
+    x, y, z = vector[0] + 1e-10, vector[1] + 1e-10, vector[2] + 1e-10
+    r, φ, θ = cartesian_2_polar_coordiantes(x, y, z)
+    arrow = list(map(vertex__cyllindrical_2_cartesian__along_x,
+                     vertical_arrow_vertices(r,
+                                             cone_radius,
+                                             cone_height)))
+    rot_transform = y_rotation_transform(θ)
+    rot_transform = np.matmul(z_rotation_transform(φ),
+                              rot_transform)
+    verts = list(map(lambda vert: v_2_p(np.matmul(rot_transform, vert)),
+                     arrow))
+    return verts
+
+
+###
+
+def get_grease_pencil(gpencil_obj_name='GPencil') -> bpy.types.GreasePencil:
+    if gpencil_obj_name not in bpy.context.scene.objects:
+        bpy.ops.object.gpencil_add(align='WORLD', location=(0, 0, 0), type='EMPTY') # add object
+        bpy.context.scene.objects[-1].name = gpencil_obj_name
+    gpencil = bpy.context.scene.objects[gpencil_obj_name]
+    return gpencil
+
+
+def get_grease_pencil_layer(gpencil: bpy.types.GreasePencil,
+                            gpencil_layer_name='GP_Layer',
+                            clear_layer=False) -> bpy.types.GPencilLayer:
+    if gpencil.data.layers and gpencil_layer_name in gpencil.data.layers:
+        gpencil_layer = gpencil.data.layers[gpencil_layer_name]
+    else:
+        gpencil_layer = gpencil.data.layers.new(gpencil_layer_name, set_active=True)
+    if clear_layer:
+        gpencil_layer.clear()
+    return gpencil_layer
+
+
+def init_grease_pencil(gpencil_obj_name='GPencil',
+                       gpencil_layer_name='GP_layer',
+                       clear_layer=True) -> bpy.types.GPencilLayer:
+    gpencil = get_grease_pencil(gpencil_obj_name)
+    gpencil_layer = get_grease_pencil_layer(gpencil, gpencil_layer_name, clear_layer=clear_layer)
+    return gpencil_layer
+
+
+def draw_line(gp_frame, p0: tuple, p1: tuple):
+    gp_stroke = gp_frame.strokes.new()
+    gp_stroke.display_mode = '3DSPACE'
+    gp_stroke.points.add(count=2)
+    gp_stroke.points[0].co = p0
+    gp_stroke.points[1].co = p1
+    return gp_stroke
+
+def draw_arrow(gp_frame, vector, material_index, cone_radius, cone_height):
+    gp_stroke = gp_frame.strokes.new()
+    gp_stroke.display_mode = '3DSPACE'
+    gp_stroke.line_width = 5
+    gp_stroke.material_index = material_index
+    verts = arrow_vertices(vector, cone_radius, cone_height)
+    gp_stroke.points.add(count=len(verts))
+    for i in range(len(verts)):
+        gp_stroke.points[i].co = verts[i]
+    return gp_stroke
+
+
+
+gp_layer = init_grease_pencil()
+gp_frame = gp_layer.frames.new(0)
+
+
+draw_arrow(gp_frame, np.array([1, 0, 0]), 0, 0.03, 0.3)
+draw_arrow(gp_frame, np.array([0, 1, 0]), 0, 0.03, 0.3)
+draw_arrow(gp_frame, np.array([0, 0, 1]), 0, 0.03, 0.3)
+
+draw_arrow(gp_frame, np.array([2/3, 1/2, 3/2]), 1, 0.03, 0.3)
+
+
+# for θ in np.arange(-np.pi/2, np.pi/2, np.pi/32):
+#     for φ in np.arange(0, 2*np.pi, np.pi/32):
+#         draw_arrow(gp_frame, np.array([np.cos(θ)*np.cos(φ), np.cos(θ)*np.sin(φ), np.sin(θ)]), 0.01, 0.1)

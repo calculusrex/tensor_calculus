@@ -1,0 +1,9 @@
+
+
+expr: (x + 3*y + x^2*y)^3;
+
+expand (expr);
+
+expr, x = 5/z;
+
+factor (%);

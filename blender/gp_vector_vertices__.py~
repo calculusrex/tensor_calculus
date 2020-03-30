@@ -1,0 +1,88 @@
+import sympy as sp
+
+from sympy import cos, sin, atan, sqrt, Matrix, diff, pi
+
+
+# cyllindrical system
+
+x, y, z0 = sp.symbols('x y z0')
+r, θ, z1 = sp.symbols('r θ z1')
+
+csr = {}
+
+csr['x'] = r*cos(θ)
+csr['y'] = r*sin(θ)
+csr['z0'] = z1
+
+csr['r'] = sqrt(x**2 + y**2)
+csr['θ'] = atan(y/x)
+csr['z1'] = z0
+
+
+# cartesian -> cyllindrical
+JF = Matrix([
+    [diff(csr['x'], r), diff(csr['x'], θ), diff(csr['x'], z1)],
+    [diff(csr['y'], r), diff(csr['y'], θ), diff(csr['y'], z1)],
+    [diff(csr['z0'], r), diff(csr['z0'], θ), diff(csr['z0'], z1)],
+])
+JF = JF.applyfunc(lambda x: sp.simplify(x))
+
+
+# cyllindrical -> cartesian
+JB = Matrix([
+    [diff(csr['r'], x), diff(csr['r'], y), diff(csr['r'], z0)],
+    [diff(csr['θ'], x), diff(csr['θ'], y), diff(csr['θ'], z0)],
+    [diff(csr['z1'], x), diff(csr['z1'], y), diff(csr['z1'], z0)],
+])
+JB = JB.applyfunc(lambda x: sp.simplify(x))
+
+
+# vector components to point (tuple understood by blender as point)
+def v_2_p(matrix):
+    x, y, z = matrix[0], matrix[1], matrix[2]
+    return float(x), float(y), float(z)
+    
+
+# the arc is the angle describing the arc, 2*π will be a full circle, 3*π/2 will be three quarters, etc...
+def vertex_circle(radius, vertex_number, arc, z):
+    r = radius
+    angles = [i * arc/vertex_number for i in range(vertex_number)]
+    return [Matrix([r, α, z]) for α in angles]
+
+
+def vector_vertices(length, cone_radius, cone_height):
+    root = Matrix([0, 0, 0])
+    tip = Matrix([0, 0, length])
+    circle = vertex_circle(cone_radius, 16, 3*pi/2,
+                           length - cone_height)
+    verts = [root, tip] + circle + [tip]
+    return verts
+
+
+def vertex__cyllindrical_2_cartesian(v):
+    x = csr['x'].subs(r, v[0]).subs(θ, v[1]).subs(z1, v[2])
+    y = csr['y'].subs(r, v[0]).subs(θ, v[1]).subs(z1, v[2])
+    z = csr['z0'].subs(r, v[0]).subs(θ, v[1]).subs(z1, v[2])
+    return Matrix([x, y, z])
+
+
+def vertices__cyllindrical_2_cartesian(verts):
+    return list(map(lambda v: vertex__cyllindrical_2_cartesian(v),
+                    verts))
+
+
+def cartesian_vector_vertices(length, cone_radius, cone_height):
+    cyl_verts = vector_vertices(length, cone_radius, cone_height)
+    cyl_verts = vertices__cyllindrical_2_cartesian(
+        cyl_verts)
+    return cyl_verts
+
+
+def float_vector_vertices(length, cone_radius, cone_height):
+    verts = cartesian_vector_vertices(length, cone_radius, cone_height)
+    return list(map(v_2_p, verts))
+
+
+
+if __name__ == '__main__':
+    sp.init_printing()
