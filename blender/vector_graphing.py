@@ -66,16 +66,16 @@ def vertex__cyllindrical_2_cartesian__along_x(v):
     return np.array([z, x, y])
 
 
-def cartesian_2_polar_coordiantes(x_, y_, z_):
+def cartesian_2_spherical_coordiantes(x_, y_, z_):
     r_ = np.sqrt(x_**2 + y_**2 + z_**2)
-    φ_ = np.arctan(y_/x_) if (x_ >= 0 and y_ >= 0) or (x_ >= 0 and y_ <= 0) else np.pi + np.arctan(y_/x_)
-    θ_ = np.arctan(z_/np.sqrt(x_**2 + y_**2))
+    φ_ = np.arccos(x_/np.sqrt(x_**2 + y_**2))
+    θ_ = np.arcsin(z_/np.sqrt(x_**2 + y_**2 + z_**2))
     return r_, φ_, θ_
 
 
 def arrow_points(vector, cone_radius, cone_height):
     x, y, z = vector[0] + 1e-10, vector[1] + 1e-10, vector[2] + 1e-10
-    r, φ, θ = cartesian_2_polar_coordiantes(x, y, z)
+    r, φ, θ = cartesian_2_spherical_coordiantes(x, y, z)
     arrow = list(map(vertex__cyllindrical_2_cartesian__along_x,
                      vertical_arrow_vertices(r,
                                              cone_radius,
